@@ -29,6 +29,8 @@ import {
   Sparkles,
 } from "lucide-react"
 
+import Link from "next/link"
+
 const tabs = [
   "Overview",
   "Statistics",
@@ -149,9 +151,15 @@ function RealMatchCard({ match }: { match: Fixture }) {
         </div>
       </div>
 
-      <button className="mt-5 w-full rounded-xl bg-primary/10 py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground">
+      {/* <button className="mt-5 w-full rounded-xl bg-primary/10 py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground">
         Analyze match
-      </button>
+      </button> */}
+      <Link
+        href={`/matches/${match.fixture_id}`}
+        className="mt-5 block w-full rounded-xl bg-primary/10 py-2.5 text-center text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+      >
+        Analyze match
+      </Link>
     </article>
   )
 }
