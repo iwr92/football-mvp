@@ -1,167 +1,196 @@
-import Link from "next/link"
-import {
-  ArrowLeft,
-  MapPin,
-  ShieldCheck,
-  Target,
-  Crosshair,
-  Flag,
-  BadgeAlert,
-} from "lucide-react"
+import Image from "next/image"
+import { notFound } from "next/navigation"
 
-import { getFixtureById } from "@/lib/fixtures"
+import { getFixtureDetail } from "@/lib/fixtures"
 
-type MatchPageProps = {
+type MatchDetailPageProps = {
   params: Promise<{
     fixtureId: string
   }>
 }
 
-export default async function MatchPage({
+export default async function MatchDetailPage({
   params,
-}: MatchPageProps) {
+}: MatchDetailPageProps) {
   const { fixtureId } = await params
-  const fixture = await getFixtureById(Number(fixtureId))
 
-  const statistics = fixture.statistics
+  let match
+
+  try {
+    match = await getFixtureDetail(fixtureId)
+  } catch (error) {
+    console.error(error)
+    notFound()
+  }
+
+  const matchDate = new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date(match.date))
 
   return (
-    <main className="bg-iridescent min-h-dvh px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Back to dashboard
-        </Link>
+    <main className="min-h-screen bg-[#F7F5F2] px-4 py-8 md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <section className="overflow-hidden rounded-[24px] border border-black/5 bg-white/70 shadow-sm backdrop-blur-xl">
+          <div className="border-b border-black/5 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <Image
+                src={match.league.logo}
+                alt={match.league.name}
+                width={32}
+                height={32}
+              />
 
-        <section className="glass mt-6 rounded-3xl p-6 sm:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                {fixture.country} · {fixture.league}
-              </p>
-
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                {fixture.home} vs {fixture.away}
-              </h1>
-
-              {fixture.venue && (
-                <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="size-4" />
-                  {fixture.venue}
+              <div>
+                <p className="font-semibold text-neutral-900">
+                  {match.league.name}
                 </p>
-              )}
-            </div>
 
-            <span className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs font-semibold">
-              {fixture.status}
-            </span>
+                <p className="text-sm text-neutral-500">
+                  {match.league.country} · {match.league.round}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <div>
-              <p className="text-lg font-semibold">
-                {fixture.home}
+          <div className="px-6 py-10">
+            <div className="mb-8 text-center">
+              <p className="text-sm text-neutral-500">
+                {matchDate}
               </p>
-              <p className="text-sm text-muted-foreground">
-                Home
+
+              <p className="mt-2 text-sm font-medium text-orange-600">
+                {match.status.long}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border bg-background/70 px-6 py-4">
-              <span className="text-3xl font-bold">
-                {fixture.score.home ?? "-"} -{" "}
-                {fixture.score.away ?? "-"}
-              </span>
-            </div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+              <div className="flex flex-col items-center text-center">
+                <Image
+                  src={match.teams.home.logo}
+                  alt={match.teams.home.name}
+                  width={84}
+                  height={84}
+                  className="object-contain"
+                />
 
-            <div className="text-right">
-              <p className="text-lg font-semibold">
-                {fixture.away}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Away
-              </p>
+                <h1 className="mt-4 text-lg font-semibold text-neutral-900 md:text-2xl">
+                  {match.teams.home.name}
+                </h1>
+              </div>
+
+              <div className="rounded-2xl bg-neutral-950 px-5 py-4 text-center text-white">
+                <p className="text-3xl font-bold md:text-4xl">
+                  {match.goals.home ?? "-"}{" "}
+                  <span className="text-neutral-500">:</span>{" "}
+                  {match.goals.away ?? "-"}
+                </p>
+
+                <p className="mt-1 text-xs uppercase tracking-wider text-neutral-400">
+                  {match.status.short}
+                </p>
+              </div>
+
+              <div className="flex flex-col items-center text-center">
+                <Image
+                  src={match.teams.away.logo}
+                  alt={match.teams.away.name}
+                  width={84}
+                  height={84}
+                  className="object-contain"
+                />
+
+                <h2 className="mt-4 text-lg font-semibold text-neutral-900 md:text-2xl">
+                  {match.teams.away.name}
+                </h2>
+              </div>
             </div>
           </div>
         </section>
 
-        {statistics && (
-          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Stat
-              icon={<ShieldCheck className="size-5" />}
-              label="Possession"
-              home={`${statistics.possession.home}%`}
-              away={`${statistics.possession.away}%`}
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          <InfoCard
+            label="Estadio"
+            value={match.venue?.name ?? "Sin información"}
+          />
+
+          <InfoCard
+            label="Ciudad"
+            value={match.venue?.city ?? "Sin información"}
+          />
+
+          <InfoCard
+            label="Árbitro"
+            value={match.referee ?? "Sin información"}
+          />
+        </section>
+
+        <section className="mt-6 rounded-[24px] border border-black/5 bg-white/70 p-6 shadow-sm backdrop-blur-xl">
+          <h2 className="text-xl font-semibold text-neutral-900">
+            Datos disponibles
+          </h2>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <AvailabilityCard
+              label="Estadísticas"
+              total={Object.keys(match.statistics ?? {}).length}
             />
 
-            <Stat
-              icon={<Target className="size-5" />}
-              label="Shots"
-              home={statistics.shots.home}
-              away={statistics.shots.away}
+            <AvailabilityCard
+              label="Eventos"
+              total={match.events?.length ?? 0}
             />
 
-            <Stat
-              icon={<Crosshair className="size-5" />}
-              label="Shots on target"
-              home={statistics.shots_on_target.home}
-              away={statistics.shots_on_target.away}
+            <AvailabilityCard
+              label="Alineaciones"
+              total={match.lineups?.length ?? 0}
             />
-
-            <Stat
-              icon={<Flag className="size-5" />}
-              label="Corners"
-              home={statistics.corners.home}
-              away={statistics.corners.away}
-            />
-
-            <Stat
-              icon={<BadgeAlert className="size-5" />}
-              label="Cards"
-              home={statistics.cards.home}
-              away={statistics.cards.away}
-            />
-          </section>
-        )}
+          </div>
+        </section>
       </div>
     </main>
   )
 }
 
-type StatProps = {
-  icon: React.ReactNode
+function InfoCard({
+  label,
+  value,
+}: {
   label: string
-  home: string | number
-  away: string | number
+  value: string
+}) {
+  return (
+    <article className="rounded-[20px] border border-black/5 bg-white/70 p-5 shadow-sm backdrop-blur-xl">
+      <p className="text-sm text-neutral-500">{label}</p>
+      <p className="mt-1 font-semibold text-neutral-900">{value}</p>
+    </article>
+  )
 }
 
-function Stat({
-  icon,
+function AvailabilityCard({
   label,
-  home,
-  away,
-}: StatProps) {
+  total,
+}: {
+  label: string
+  total: number
+}) {
+  const available = total > 0
+
   return (
-    <article className="glass rounded-3xl p-5">
-      <div className="flex items-center gap-2 text-primary">
-        {icon}
-        <span className="text-sm font-semibold">{label}</span>
-      </div>
+    <article className="rounded-2xl bg-black/[0.03] p-4">
+      <p className="font-medium text-neutral-900">{label}</p>
 
-      <div className="mt-5 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground">Home</p>
-          <p className="mt-1 text-2xl font-semibold">{home}</p>
-        </div>
-
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Away</p>
-          <p className="mt-1 text-2xl font-semibold">{away}</p>
-        </div>
-      </div>
+      <p
+        className={`mt-1 text-sm ${
+          available
+            ? "text-emerald-700"
+            : "text-neutral-500"
+        }`}
+      >
+        {available
+          ? `${total} registros disponibles`
+          : "Información no disponible"}
+      </p>
     </article>
   )
 }

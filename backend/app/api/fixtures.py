@@ -1,92 +1,125 @@
-from fastapi import APIRouter
+from typing import Any
 
-router = APIRouter(prefix="/fixtures", tags=["fixtures"])
+from fastapi import APIRouter, HTTPException, Path
 
-from fastapi import APIRouter, HTTPException
+from app.services.api_football import api_football_get
 
-FIXTURES = [
-    {
-        "fixture_id": 1519384,
-        "date": "2026-07-09T00:00:00+00:00",
-        "league": "Liga Pro",
-        "country": "Ecuador",
-        "home": "Aucas",
-        "away": "Guayaquil City FC",
-        "score": {
-            "home": 1,
-            "away": 0,
-        },
-        "status": "FT",
-        "venue": "Estadio Gonzalo Pozo Ripalda",
-        "statistics": {
-            "possession": {
-                "home": 54,
-                "away": 46,
-            },
-            "shots": {
-                "home": 13,
-                "away": 9,
-            },
-            "shots_on_target": {
-                "home": 5,
-                "away": 3,
-            },
-            "corners": {
-                "home": 6,
-                "away": 4,
-            },
-            "cards": {
-                "home": 2,
-                "away": 3,
-            },
-        },
-    }
-]
+router = APIRouter(
+    prefix="/fixtures",
+    tags=["Fixtures"],
+)
 
 
-@router.get("/today")
-def get_today_fixtures():
-    return {
-        "date": "2026-07-09",
-        "total": len(FIXTURES),
-        "matches": FIXTURES,
-    }
+def normalize_statistics(
+    statistics_response: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Convierte las estadísticas de API-Football en una estructura
+    más simple para consumir desde el frontend.
+    """
+
+    normalized: dict[str, Any] = {}
+
+    for team_data in statistics_response:
+        team = team_data.get("team", {})
+        team_id = team.get("id")
+
+        if team_id is None:
+            continue
+
+        stats = {}
+
+        for stat in team_data.get("statistics", []):
+            stat_type = stat.get("type")
+            stat_value = stat.get("value")
+
+            if stat_type:
+                stats[stat_type] = stat_value
+
+        normalized[str(team_id)] = {
+            "team": {
+                "id": team_id,
+                "name": team.get("name"),
+                "logo": team.get("logo"),
+            },
+            "statistics": stats,
+        }
+
+    return normalized
 
 
 @router.get("/{fixture_id}")
-def get_fixture(fixture_id: int):
-    fixture = next(
-        (
-            fixture
-            for fixture in FIXTURES
-            if fixture["fixture_id"] == fixture_id
-        ),
-        None,
+async def get_fixture_detail(
+    fixture_id: int = Path(
+        ...,
+        gt=0,
+        description="ID del fixture en API-Football",
+    ),
+) -> dict[str, Any]:
+    fixture_response = await api_football_get(
+        endpoint="/fixtures",
+        params={"id": fixture_id},
     )
 
-    if fixture is None:
+    if not fixture_response:
         raise HTTPException(
             status_code=404,
-            detail="Fixture not found",
+            detail=f"No se encontró el fixture {fixture_id}.",
         )
 
-    return fixture
+    fixture_data = fixture_response[0]
 
+    # Algunas respuestas de /fixtures?id= incluyen eventos,
+    # alineaciones y estadísticas. También los consultamos
+    # individualmente para mantener el contrato estable.
+    statistics_response = await api_football_get(
+        endpoint="/fixtures/statistics",
+        params={"fixture": fixture_id},
+    )
 
-@router.get("/today")
-def get_today_fixtures():
+    events_response = await api_football_get(
+        endpoint="/fixtures/events",
+        params={"fixture": fixture_id},
+    )
+
+    lineups_response = await api_football_get(
+        endpoint="/fixtures/lineups",
+        params={"fixture": fixture_id},
+    )
+
+    fixture = fixture_data.get("fixture", {})
+    league = fixture_data.get("league", {})
+    teams = fixture_data.get("teams", {})
+    goals = fixture_data.get("goals", {})
+    score = fixture_data.get("score", {})
+
     return {
-        "date": "2026-07-09",
-        "total": 1,
-        "matches": [
-            {
-                "fixture_id": 1519384,
-                "league": "Liga Pro",
-                "country": "Ecuador",
-                "home": "Aucas",
-                "away": "Guayaquil City FC",
-                "score": {"home": 1, "away": 0},
-                "status": "FT",
-            }
-        ],
+        "fixture_id": fixture.get("id"),
+        "date": fixture.get("date"),
+        "timestamp": fixture.get("timestamp"),
+        "timezone": fixture.get("timezone"),
+        "status": fixture.get("status"),
+        "venue": fixture.get("venue"),
+        "referee": fixture.get("referee"),
+        "league": {
+            "id": league.get("id"),
+            "name": league.get("name"),
+            "country": league.get("country"),
+            "logo": league.get("logo"),
+            "flag": league.get("flag"),
+            "season": league.get("season"),
+            "round": league.get("round"),
+        },
+        "teams": {
+            "home": teams.get("home"),
+            "away": teams.get("away"),
+        },
+        "goals": {
+            "home": goals.get("home"),
+            "away": goals.get("away"),
+        },
+        "score": score,
+        "statistics": normalize_statistics(statistics_response),
+        "events": events_response,
+        "lineups": lineups_response,
     }
