@@ -35,24 +35,47 @@ export type FixturesResponse = {
   matches: Fixture[]
 }
 
-export function getTodayFixtures(): Promise<FixturesResponse> {
-  return apiGet<FixturesResponse>("/fixtures/today")
+export type FixtureStatus = {
+  long: string
+  short: string
+  elapsed: number | null
+  extra: number | null
 }
 
-export function getFixtureById(
-  fixtureId: number,
-): Promise<Fixture> {
-  return apiGet<Fixture>(`/fixtures/${fixtureId}`)
+export type FixtureVenue = {
+  id: number | null
+  name: string | null
+  city: string | null
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+export type FixtureLeague = {
+  id: number
+  name: string
+  country: string
+  logo: string
+  flag: string | null
+  season: number
+  round: string
+}
 
 export type FixtureTeam = {
   id: number
   name: string
   logo: string
   winner: boolean | null
+  goals: number | null
+}
+
+export type FixtureScorePeriod = {
+  home: number | null
+  away: number | null
+}
+
+export type FixtureScore = {
+  halftime: FixtureScorePeriod
+  fulltime: FixtureScorePeriod
+  extratime: FixtureScorePeriod
+  penalty: FixtureScorePeriod
 }
 
 export type FixtureDetail = {
@@ -60,81 +83,27 @@ export type FixtureDetail = {
   date: string
   timestamp: number
   timezone: string
-
-  status: {
-    long: string
-    short: string
-    elapsed: number | null
-    extra: number | null
-  }
-
-  venue: {
-    id: number | null
-    name: string | null
-    city: string | null
-  }
-
   referee: string | null
-
-  league: {
-    id: number
-    name: string
-    country: string
-    logo: string
-    flag: string | null
-    season: number
-    round: string
-  }
-
-  teams: {
-    home: FixtureTeam
-    away: FixtureTeam
-  }
-
-  goals: {
-    home: number | null
-    away: number | null
-  }
-
-  score: {
-    halftime: {
-      home: number | null
-      away: number | null
-    }
-    fulltime: {
-      home: number | null
-      away: number | null
-    }
-    extratime: {
-      home: number | null
-      away: number | null
-    }
-    penalty: {
-      home: number | null
-      away: number | null
-    }
-  }
-
-  statistics: Record<string, unknown>
-  events: unknown[]
-  lineups: unknown[]
+  status: FixtureStatus
+  venue: FixtureVenue
+  league: FixtureLeague
+  home: FixtureTeam
+  away: FixtureTeam
+  score: FixtureScore
 }
 
-export async function getFixtureDetail(
+export function getTodayFixtures(): Promise<FixturesResponse> {
+  return apiGet<FixturesResponse>("/fixtures/today")
+}
+
+export function getFixtureById(
+  fixtureId: number,
+): Promise<FixtureDetail> {
+  return apiGet<FixtureDetail>(`/fixtures/${fixtureId}`)
+}
+
+export function getFixtureDetail(
   fixtureId: string | number,
 ): Promise<FixtureDetail> {
-  const response = await fetch(
-    `${API_URL}/fixtures/${fixtureId}`,
-    {
-      cache: "no-store",
-    },
-  )
-
-  if (!response.ok) {
-    throw new Error(
-      `No se pudo cargar el partido ${fixtureId}`,
-    )
-  }
-
-  return response.json()
+  return apiGet<FixtureDetail>(`/fixtures/${fixtureId}`)
 }

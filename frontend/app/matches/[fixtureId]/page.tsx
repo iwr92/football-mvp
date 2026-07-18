@@ -1,4 +1,6 @@
 import Image from "next/image"
+import Link from "next/link"
+import { ArrowLeft, CalendarDays, MapPin, Shield, Trophy } from "lucide-react"
 import { notFound } from "next/navigation"
 
 import { getFixtureDetail } from "@/lib/fixtures"
@@ -19,131 +21,158 @@ export default async function MatchDetailPage({
   try {
     match = await getFixtureDetail(fixtureId)
   } catch (error) {
-    console.error(error)
+    console.error(`Could not load fixture ${fixtureId}`, error)
     notFound()
   }
 
   const matchDate = new Intl.DateTimeFormat("es-AR", {
     dateStyle: "long",
     timeStyle: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(match.date))
 
+  const isFinished = match.status.short === "FT"
+  const isLive = ["1H", "HT", "2H", "ET", "P", "LIVE"].includes(
+    match.status.short,
+  )
+
+  const homeGoals = match.home.goals
+  const awayGoals = match.away.goals
+
   return (
-    <main className="min-h-screen bg-[#F7F5F2] px-4 py-8 md:px-8">
+    <main className="min-h-screen bg-iridescent px-4 py-6 md:px-8 md:py-8">
       <div className="mx-auto max-w-6xl">
-        <section className="overflow-hidden rounded-[24px] border border-black/5 bg-white/70 shadow-sm backdrop-blur-xl">
-          <div className="border-b border-black/5 px-6 py-4">
+        <Link
+          href="/"
+          className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Volver a partidos
+        </Link>
+
+        <section className="glass-strong overflow-hidden rounded-[28px]">
+          <header className="flex flex-col gap-4 border-b border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between md:px-7">
             <div className="flex items-center gap-3">
-              <Image
-                src={match.league.logo}
-                alt={match.league.name}
-                width={32}
-                height={32}
-              />
+              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary">
+                <Image
+                  src={match.league.logo}
+                  alt={`Logo de ${match.league.name}`}
+                  width={30}
+                  height={30}
+                  className="object-contain"
+                />
+              </div>
 
               <div>
-                <p className="font-semibold text-neutral-900">
+                <p className="font-semibold text-foreground">
                   {match.league.name}
                 </p>
 
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-muted-foreground">
                   {match.league.country} · {match.league.round}
                 </p>
               </div>
             </div>
-          </div>
 
-          <div className="px-6 py-10">
-            <div className="mb-8 text-center">
-              <p className="text-sm text-neutral-500">
-                {matchDate}
-              </p>
+            <MatchStatus
+              longStatus={match.status.long}
+              shortStatus={match.status.short}
+              elapsed={match.status.elapsed}
+              isFinished={isFinished}
+              isLive={isLive}
+            />
+          </header>
 
-              <p className="mt-2 text-sm font-medium text-orange-600">
-                {match.status.long}
-              </p>
+          <div className="px-5 py-8 md:px-8 md:py-12">
+            <div className="mb-9 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+              <CalendarDays className="size-4" />
+              <span className="capitalize">{matchDate}</span>
             </div>
 
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-              <div className="flex flex-col items-center text-center">
-                <Image
-                  src={match.teams.home.logo}
-                  alt={match.teams.home.name}
-                  width={84}
-                  height={84}
-                  className="object-contain"
-                />
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-10">
+              <TeamBlock
+                name={match.home.name}
+                logo={match.home.logo}
+                winner={match.home.winner}
+              />
 
-                <h1 className="mt-4 text-lg font-semibold text-neutral-900 md:text-2xl">
-                  {match.teams.home.name}
-                </h1>
-              </div>
+              <ScoreBlock
+                homeGoals={homeGoals}
+                awayGoals={awayGoals}
+                shortStatus={match.status.short}
+                elapsed={match.status.elapsed}
+                isLive={isLive}
+              />
 
-              <div className="rounded-2xl bg-neutral-950 px-5 py-4 text-center text-white">
-                <p className="text-3xl font-bold md:text-4xl">
-                  {match.goals.home ?? "-"}{" "}
-                  <span className="text-neutral-500">:</span>{" "}
-                  {match.goals.away ?? "-"}
-                </p>
-
-                <p className="mt-1 text-xs uppercase tracking-wider text-neutral-400">
-                  {match.status.short}
-                </p>
-              </div>
-
-              <div className="flex flex-col items-center text-center">
-                <Image
-                  src={match.teams.away.logo}
-                  alt={match.teams.away.name}
-                  width={84}
-                  height={84}
-                  className="object-contain"
-                />
-
-                <h2 className="mt-4 text-lg font-semibold text-neutral-900 md:text-2xl">
-                  {match.teams.away.name}
-                </h2>
-              </div>
+              <TeamBlock
+                name={match.away.name}
+                logo={match.away.logo}
+                winner={match.away.winner}
+              />
             </div>
+
+            {isFinished && (
+              <div className="mt-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Descanso: {match.score.halftime.home ?? "-"}–
+                  {match.score.halftime.away ?? "-"}
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
+        <section className="mt-5 grid gap-4 md:grid-cols-3">
           <InfoCard
+            icon={<MapPin className="size-5" />}
             label="Estadio"
             value={match.venue?.name ?? "Sin información"}
           />
 
           <InfoCard
-            label="Ciudad"
-            value={match.venue?.city ?? "Sin información"}
+            icon={<Trophy className="size-5" />}
+            label="Temporada"
+            value={`${match.league.season}`}
           />
 
           <InfoCard
+            icon={<Shield className="size-5" />}
             label="Árbitro"
             value={match.referee ?? "Sin información"}
           />
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-black/5 bg-white/70 p-6 shadow-sm backdrop-blur-xl">
-          <h2 className="text-xl font-semibold text-neutral-900">
-            Datos disponibles
-          </h2>
+        <section className="glass mt-5 rounded-[24px] p-6">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              Próxima implementación
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold text-foreground">
+              Estadísticas y análisis del partido
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              El encabezado ya consume información real. El siguiente paso será
+              incorporar estadísticas reales, forma reciente y recomendaciones
+              calculadas desde el backend.
+            </p>
+          </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <AvailabilityCard
-              label="Estadísticas"
-              total={Object.keys(match.statistics ?? {}).length}
+            <PendingFeature
+              title="Estadísticas"
+              description="Remates, posesión, corners, tarjetas y tiros al arco."
             />
 
-            <AvailabilityCard
-              label="Eventos"
-              total={match.events?.length ?? 0}
+            <PendingFeature
+              title="Forma reciente"
+              description="Últimos partidos y rendimiento de ambos equipos."
             />
 
-            <AvailabilityCard
-              label="Alineaciones"
-              total={match.lineups?.length ?? 0}
+            <PendingFeature
+              title="Mercados de valor"
+              description="Recomendaciones explicadas, sin depender de cuotas."
             />
           </div>
         </section>
@@ -152,44 +181,146 @@ export default async function MatchDetailPage({
   )
 }
 
+function TeamBlock({
+  name,
+  logo,
+  winner,
+}: {
+  name: string
+  logo: string
+  winner: boolean | null
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-center text-center">
+      <div
+        className={`flex size-20 items-center justify-center rounded-2xl border bg-card/80 p-3 shadow-sm md:size-28 ${
+          winner ? "border-primary/35 ring-4 ring-primary/8" : "border-border"
+        }`}
+      >
+        <Image
+          src={logo}
+          alt={`Escudo de ${name}`}
+          width={84}
+          height={84}
+          className="size-full object-contain"
+        />
+      </div>
+
+      <h1 className="mt-4 max-w-full truncate text-base font-semibold text-foreground sm:text-lg md:text-2xl">
+        {name}
+      </h1>
+
+      {winner && (
+        <span className="mt-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          Ganador
+        </span>
+      )}
+    </div>
+  )
+}
+
+function ScoreBlock({
+  homeGoals,
+  awayGoals,
+  shortStatus,
+  elapsed,
+  isLive,
+}: {
+  homeGoals: number | null
+  awayGoals: number | null
+  shortStatus: string
+  elapsed: number | null
+  isLive: boolean
+}) {
+  return (
+    <div className="rounded-2xl bg-foreground px-4 py-4 text-center text-background shadow-lg md:min-w-40 md:px-6">
+      <p className="whitespace-nowrap text-3xl font-bold tracking-tight md:text-5xl">
+        {homeGoals ?? "–"}
+        <span className="mx-2 text-background/35">:</span>
+        {awayGoals ?? "–"}
+      </p>
+
+      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-background/60">
+        {isLive && elapsed ? `${elapsed}' · ${shortStatus}` : shortStatus}
+      </p>
+    </div>
+  )
+}
+
+function MatchStatus({
+  longStatus,
+  shortStatus,
+  elapsed,
+  isFinished,
+  isLive,
+}: {
+  longStatus: string
+  shortStatus: string
+  elapsed: number | null
+  isFinished: boolean
+  isLive: boolean
+}) {
+  if (isLive) {
+    return (
+      <span className="inline-flex w-fit items-center gap-2 rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive">
+        <span className="size-2 animate-pulse rounded-full bg-destructive" />
+        EN VIVO {elapsed ? `· ${elapsed}'` : ""}
+      </span>
+    )
+  }
+
+  if (isFinished) {
+    return (
+      <span className="inline-flex w-fit rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+        Finalizado
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex w-fit rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">
+      {longStatus || shortStatus}
+    </span>
+  )
+}
+
 function InfoCard({
+  icon,
   label,
   value,
 }: {
+  icon: React.ReactNode
   label: string
   value: string
 }) {
   return (
-    <article className="rounded-[20px] border border-black/5 bg-white/70 p-5 shadow-sm backdrop-blur-xl">
-      <p className="text-sm text-neutral-500">{label}</p>
-      <p className="mt-1 font-semibold text-neutral-900">{value}</p>
+    <article className="glass rounded-[20px] p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          {icon}
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="mt-1 truncate font-semibold text-foreground">{value}</p>
+        </div>
+      </div>
     </article>
   )
 }
 
-function AvailabilityCard({
-  label,
-  total,
+function PendingFeature({
+  title,
+  description,
 }: {
-  label: string
-  total: number
+  title: string
+  description: string
 }) {
-  const available = total > 0
-
   return (
-    <article className="rounded-2xl bg-black/[0.03] p-4">
-      <p className="font-medium text-neutral-900">{label}</p>
-
-      <p
-        className={`mt-1 text-sm ${
-          available
-            ? "text-emerald-700"
-            : "text-neutral-500"
-        }`}
-      >
-        {available
-          ? `${total} registros disponibles`
-          : "Información no disponible"}
+    <article className="rounded-2xl border border-border/70 bg-card/50 p-4">
+      <p className="font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-sm leading-5 text-muted-foreground">
+        {description}
       </p>
     </article>
   )
