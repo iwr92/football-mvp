@@ -1,97 +1,157 @@
-from typing import Any
+import os
+from datetime import date
 
-from fastapi import APIRouter, HTTPException, Path
+import httpx
+from fastapi import APIRouter, HTTPException
 
-from app.services.api_football import api_football_get
+router = APIRouter(prefix="/fixtures", tags=["fixtures"])
 
-router = APIRouter(
-    prefix="/fixtures",
-    tags=["Fixtures"],
-)
-
-
-def normalize_statistics(
-    statistics_response: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """
-    Convierte las estadísticas de API-Football en una estructura
-    más simple para consumir desde el frontend.
-    """
-
-    normalized: dict[str, Any] = {}
-
-    for team_data in statistics_response:
-        team = team_data.get("team", {})
-        team_id = team.get("id")
-
-        if team_id is None:
-            continue
-
-        stats = {}
-
-        for stat in team_data.get("statistics", []):
-            stat_type = stat.get("type")
-            stat_value = stat.get("value")
-
-            if stat_type:
-                stats[stat_type] = stat_value
-
-        normalized[str(team_id)] = {
-            "team": {
-                "id": team_id,
-                "name": team.get("name"),
-                "logo": team.get("logo"),
-            },
-            "statistics": stats,
-        }
-
-    return normalized
+API_FOOTBALL_URL = "https://v3.football.api-sports.io"
 
 
-@router.get("/{fixture_id}")
-async def get_fixture_detail(
-    fixture_id: int = Path(
-        ...,
-        gt=0,
-        description="ID del fixture en API-Football",
-    ),
-) -> dict[str, Any]:
-    fixture_response = await api_football_get(
-        endpoint="/fixtures",
-        params={"id": fixture_id},
-    )
+def get_api_key() -> str:
+    api_key = os.getenv("API_FOOTBALL_KEY")
 
-    if not fixture_response:
+    if not api_key:
         raise HTTPException(
-            status_code=404,
-            detail=f"No se encontró el fixture {fixture_id}.",
+            status_code=500,
+            detail="API_FOOTBALL_KEY is not configured",
         )
 
-    fixture_data = fixture_response[0]
+    return api_key
 
-    # Algunas respuestas de /fixtures?id= incluyen eventos,
-    # alineaciones y estadísticas. También los consultamos
-    # individualmente para mantener el contrato estable.
-    statistics_response = await api_football_get(
-        endpoint="/fixtures/statistics",
-        params={"fixture": fixture_id},
-    )
 
-    events_response = await api_football_get(
-        endpoint="/fixtures/events",
-        params={"fixture": fixture_id},
-    )
+@router.get("/today")
+async def get_today_fixtures():
+    api_key = get_api_key()
+    today = date.today().isoformat()
 
-    lineups_response = await api_football_get(
-        endpoint="/fixtures/lineups",
-        params={"fixture": fixture_id},
-    )
+    headers = {
+        "x-apisports-key": api_key,
+    }
 
-    fixture = fixture_data.get("fixture", {})
-    league = fixture_data.get("league", {})
-    teams = fixture_data.get("teams", {})
-    goals = fixture_data.get("goals", {})
-    score = fixture_data.get("score", {})
+    params = {
+        "date": today,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                f"{API_FOOTBALL_URL}/fixtures",
+                headers=headers,
+                params=params,
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=exc.response.status_code,
+            detail="API-Football returned an error",
+        ) from exc
+
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to API-Football",
+        ) from exc
+
+    if data.get("errors"):
+        raise HTTPException(
+            status_code=400,
+            detail=data["errors"],
+        )
+
+    matches = []
+
+    for item in data.get("response", []):
+        fixture = item.get("fixture", {})
+        league = item.get("league", {})
+        teams = item.get("teams", {})
+        goals = item.get("goals", {})
+
+        matches.append(
+            {
+                "fixture_id": fixture.get("id"),
+                "date": fixture.get("date"),
+                "league": league.get("name"),
+                "country": league.get("country"),
+                "home": teams.get("home", {}).get("name"),
+                "away": teams.get("away", {}).get("name"),
+                "score": {
+                    "home": goals.get("home"),
+                    "away": goals.get("away"),
+                },
+                "status": fixture.get("status", {}).get("short"),
+                "venue": fixture.get("venue", {}).get("name"),
+            }
+        )
+
+    return {
+        "date": today,
+        "total": len(matches),
+        "matches": matches,
+    }
+
+
+# IMPORTANTE: esta ruta dinámica va después de /today
+@router.get("/{fixture_id}")
+async def get_fixture(fixture_id: int):
+    api_key = get_api_key()
+
+    headers = {
+        "x-apisports-key": api_key,
+    }
+
+    params = {
+        "id": fixture_id,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(
+                f"{API_FOOTBALL_URL}/fixtures",
+                headers=headers,
+                params=params,
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=exc.response.status_code,
+            detail="API-Football returned an error",
+        ) from exc
+
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to API-Football",
+        ) from exc
+
+    if data.get("errors"):
+        raise HTTPException(
+            status_code=400,
+            detail=data["errors"],
+        )
+
+    fixtures = data.get("response", [])
+
+    if not fixtures:
+        raise HTTPException(
+            status_code=404,
+            detail="Fixture not found",
+        )
+
+    item = fixtures[0]
+
+    fixture = item.get("fixture", {})
+    league = item.get("league", {})
+    teams = item.get("teams", {})
+    goals = item.get("goals", {})
+    score = item.get("score", {})
 
     return {
         "fixture_id": fixture.get("id"),
@@ -110,16 +170,19 @@ async def get_fixture_detail(
             "season": league.get("season"),
             "round": league.get("round"),
         },
-        "teams": {
-            "home": teams.get("home"),
-            "away": teams.get("away"),
+        "home": {
+            "id": teams.get("home", {}).get("id"),
+            "name": teams.get("home", {}).get("name"),
+            "logo": teams.get("home", {}).get("logo"),
+            "winner": teams.get("home", {}).get("winner"),
+            "goals": goals.get("home"),
         },
-        "goals": {
-            "home": goals.get("home"),
-            "away": goals.get("away"),
+        "away": {
+            "id": teams.get("away", {}).get("id"),
+            "name": teams.get("away", {}).get("name"),
+            "logo": teams.get("away", {}).get("logo"),
+            "winner": teams.get("away", {}).get("winner"),
+            "goals": goals.get("away"),
         },
         "score": score,
-        "statistics": normalize_statistics(statistics_response),
-        "events": events_response,
-        "lineups": lineups_response,
     }
